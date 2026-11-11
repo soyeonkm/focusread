@@ -2,6 +2,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { LayoutChangeEvent, Platform, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Line, LayoutMode, layoutText } from "../lib/layout";
+import { SidebarToggle } from "./Sidebar";
 import { SERIF, Theme, ThemeName } from "./theme";
 
 type Mode = LayoutMode | "lines";
@@ -55,10 +56,9 @@ interface Props {
   text: string;
   theme: Theme;
   onSetTheme: (name: ThemeName) => void;
-  onBack: () => void;
 }
 
-export function ReaderScreen({ text, theme, onSetTheme, onBack }: Props) {
+export function ReaderScreen({ text, theme, onSetTheme }: Props) {
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<Mode>("lines");
   // Character count of each on-screen line, per paragraph, as last rendered.
@@ -163,7 +163,10 @@ export function ReaderScreen({ text, theme, onSetTheme, onBack }: Props) {
   return (
     <View style={[styles.root, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <TextButton theme={theme} label="Back" onPress={onBack} />
+        {/* Same width as "Aa" so the mode switch stays centred. */}
+        <View style={styles.left}>
+          <SidebarToggle theme={theme} />
+        </View>
         <Segmented theme={theme} options={MODES} value={mode} onChange={setMode} />
         <TextButton theme={theme} label={showSettings ? "Done" : "Aa"} accessibilityLabel="Reading settings" onPress={() => setShowSettings((s) => !s)} />
       </View>
@@ -317,10 +320,11 @@ function Stepper({ theme, label, value, onMinus, onPlus }: { theme: Theme; label
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  left: { minWidth: 44 },
   textBtn: { minWidth: 44, minHeight: 32, justifyContent: "center", alignItems: "center" },
   seg: { flexDirection: "row", borderRadius: 9, padding: 2, flexShrink: 1 },
-  segItem: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 7, alignItems: "center" },
+  segItem: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7, alignItems: "center" },
   settings: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12, gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, alignSelf: "center", width: "100%", maxWidth: 560 },
   settingRow: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36 },
   stepBtn: { width: 36, height: 36, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },

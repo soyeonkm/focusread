@@ -10,7 +10,7 @@ Each "project" is one pasted text that was opened with **Start reading**.
 | 1 | Move navigation to Expo Router | Done |
 | 2 | Project storage | Done |
 | 3 | Automatic project titles | Done |
-| 4 | Sidebar layout (static) | Not started |
+| 4 | Sidebar layout (static) | Done |
 | 5 | Wire sidebar to projects | Not started |
 | 6 | Polish and mobile pass | Not started |
 
@@ -112,7 +112,7 @@ collapse and expand work at both widths.
   Unknown id: show "Project not found" with a link to start a new one.
 - **New project** goes to `/` with an empty paste box.
 - Highlight the open project in the list.
-- Reader's **Back** button: remove it or point it to **New project** (decide here; the sidebar now covers it).
+- (Done in ticket 4: the reader's **Back** button was removed; **New project** goes to `/`.)
 
 **Done when:** full flow works on web: paste, Start reading, project appears at the top of the list,
 reload keeps it, clicking it reopens it, New project gives an empty paste screen.
