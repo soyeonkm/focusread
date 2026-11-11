@@ -1,18 +1,11 @@
-import { Stack, useRouter } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Sidebar, SidebarContext, WIDE_MIN } from "../components/Sidebar";
 import { ThemeContext, ThemeName, THEMES } from "../components/theme";
-import type { ProjectMeta } from "../lib/projects";
-
-// ponytail: placeholder list for the static layout; ticket 5 loads real projects.
-const SAMPLE_PROJECTS: ProjectMeta[] = [
-  { id: "a", title: "Paxos gets agreement right even if…", createdAt: 3 },
-  { id: "b", title: "City council approves new bike lanes downtown", createdAt: 2 },
-  { id: "c", title: "The mitochondrion is an organelle found…", createdAt: 1 },
-];
+import { listProjects, ProjectMeta } from "../lib/projects";
 
 export default function RootLayout() {
   const [themeName, setThemeName] = useState<ThemeName>("light");
@@ -24,23 +17,37 @@ export default function RootLayout() {
   const [openChoice, setOpen] = useState<boolean | null>(null);
   const open = openChoice ?? wide;
 
+  const [projects, setProjects] = useState<ProjectMeta[]>([]);
+  useEffect(() => {
+    listProjects().then(setProjects);
+  }, []);
+  const addProject = (p: ProjectMeta) => setProjects((list) => [p, ...list]);
+
+  const pathname = usePathname();
+  const activeId = pathname.match(/^\/p\/([^/]+)$/)?.[1];
+
   const sidebar = (
     <Sidebar
       theme={theme}
-      projects={SAMPLE_PROJECTS}
-      activeId="a"
+      projects={projects}
+      activeId={activeId}
       onNew={() => {
         router.dismissTo("/");
         if (!wide) setOpen(false);
       }}
-      onSelect={() => !wide && setOpen(false)}
+      onSelect={(id) => {
+        // Swap reader for reader so switching projects doesn't pile up screens; push from the paste screen.
+        if (activeId) router.replace(`/p/${id}`);
+        else router.push(`/p/${id}`);
+        if (!wide) setOpen(false);
+      }}
     />
   );
 
   return (
     <SafeAreaProvider>
       <ThemeContext value={{ theme, setThemeName }}>
-        <SidebarContext value={{ open, setOpen, wide }}>
+        <SidebarContext value={{ open, setOpen, wide, addProject }}>
           <StatusBar style={themeName === "dark" ? "light" : "dark"} />
           <View style={[styles.row, { backgroundColor: theme.bg }]}>
             {wide && open && <View style={styles.docked}>{sidebar}</View>}

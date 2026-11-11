@@ -12,12 +12,14 @@ The result is a system where every replica applies the same operations in the sa
 
 interface Props {
   theme: Theme;
-  initialText: string;
-  onRead: (text: string) => void;
+  /** Saves and opens the text; a rejection is shown under the button and the text is kept. */
+  onRead: (text: string) => Promise<void>;
 }
 
-export function PasteScreen({ theme, initialText, onRead }: Props) {
-  const [text, setText] = useState(initialText);
+export function PasteScreen({ theme, onRead }: Props) {
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const insets = useSafeAreaInsets();
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const empty = words === 0;
@@ -66,12 +68,28 @@ export function PasteScreen({ theme, initialText, onRead }: Props) {
 
         <Pressable
           accessibilityRole="button"
-          disabled={empty}
-          onPress={() => onRead(text)}
-          style={({ pressed }) => [styles.primary, { backgroundColor: theme.ink, opacity: empty ? 0.3 : pressed ? 0.8 : 1 }]}
+          disabled={empty || saving}
+          onPress={async () => {
+            setSaving(true);
+            setError("");
+            try {
+              await onRead(text);
+              setText(""); // Saved: the paste box is fresh for the next new project.
+            } catch (e) {
+              setError(`Couldn't save this text. ${e instanceof Error ? e.message : ""}`.trim());
+            } finally {
+              setSaving(false);
+            }
+          }}
+          style={({ pressed }) => [styles.primary, { backgroundColor: theme.ink, opacity: empty || saving ? 0.3 : pressed ? 0.8 : 1 }]}
         >
           <Text style={[styles.primaryText, { color: theme.onInk }]}>Start reading</Text>
         </Pressable>
+        {!!error && (
+          <Text accessibilityRole="alert" style={[styles.small, styles.error, { color: theme.accent }]}>
+            {error}
+          </Text>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -89,5 +107,6 @@ const styles = StyleSheet.create({
   links: { flexDirection: "row", gap: 20 },
   small: { fontSize: 14 },
   primary: { borderRadius: 10, paddingVertical: 15, alignItems: "center" },
+  error: { marginTop: 12 },
   primaryText: { fontSize: 16, fontWeight: "600", letterSpacing: 0.2 },
 });

@@ -11,7 +11,7 @@ Each "project" is one pasted text that was opened with **Start reading**.
 | 2 | Project storage | Done |
 | 3 | Automatic project titles | Done |
 | 4 | Sidebar layout (static) | Done |
-| 5 | Wire sidebar to projects | Not started |
+| 5 | Wire sidebar to projects | Done |
 | 6 | Polish and mobile pass | Not started |
 
 Update this table as each ticket lands. One branch + PR per ticket.
