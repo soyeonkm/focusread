@@ -1,3 +1,4 @@
+import { createContext } from "react";
 import { Platform } from "react-native";
 
 export type ThemeName = "light" | "sepia" | "dark";
@@ -50,3 +51,9 @@ export const THEMES: Record<ThemeName, Theme> = {
 
 /** System serif for reading text; no font files to ship. */
 export const SERIF = Platform.select({ ios: "Georgia", android: "serif", default: "Georgia, 'Iowan Old Style', 'Times New Roman', serif" });
+
+/** Current theme for every screen; provided by the root layout. */
+export const ThemeContext = createContext<{ theme: Theme; setThemeName: (name: ThemeName) => void }>({
+  theme: THEMES.light,
+  setThemeName: () => {},
+});
