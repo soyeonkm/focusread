@@ -23,36 +23,38 @@ export function PasteScreen({ theme, initialText, onRead }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: theme.bg, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
+      style={[styles.root, { backgroundColor: theme.bg, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 16 }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.kicker, { color: theme.accent }]}>FOCUSREAD</Text>
-        <Text style={[styles.title, { color: theme.ink }]}>Paste something to read</Text>
+        <Text style={[styles.mark, { color: theme.accent }]}>FocusRead</Text>
+        <Text style={[styles.title, { color: theme.ink }]}>What are you reading?</Text>
         <Text style={[styles.sub, { color: theme.muted }]}>
-          Paste an article, a chapter or notes. We will clean it up and lay it out so it is easy to follow, one line at a time.
+          Paste an article, a chapter or your notes. Broken line wraps and page numbers get tidied up.
         </Text>
 
         <TextInput
           value={text}
           onChangeText={setText}
           multiline
-          placeholder="Paste text here…"
+          placeholder="Paste text here"
           placeholderTextColor={theme.muted}
           textAlignVertical="top"
           accessibilityLabel="Text to read"
-          style={[styles.input, { color: theme.ink, backgroundColor: theme.panel, borderColor: theme.line }]}
+          style={[styles.input, { color: theme.ink, borderColor: theme.line }]}
         />
 
         <View style={styles.row}>
-          <Text style={[styles.count, { color: theme.muted }]}>{words.toLocaleString()} words</Text>
-          <View style={styles.actions}>
-            <Pressable accessibilityRole="button" onPress={() => setText(SAMPLE)} style={[styles.ghost, { borderColor: theme.line }]}>
-              <Text style={{ color: theme.ink }}>Try sample</Text>
+          <Text style={[styles.small, { color: theme.muted }]}>
+            {words.toLocaleString()} {words === 1 ? "word" : "words"}
+          </Text>
+          <View style={styles.links}>
+            <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setText(SAMPLE)}>
+              <Text style={[styles.small, { color: theme.ink, fontWeight: "500" }]}>Use sample text</Text>
             </Pressable>
             {!empty && (
-              <Pressable accessibilityRole="button" onPress={() => setText("")} style={[styles.ghost, { borderColor: theme.line }]}>
-                <Text style={{ color: theme.ink }}>Clear</Text>
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setText("")}>
+                <Text style={[styles.small, { color: theme.ink, fontWeight: "500" }]}>Clear</Text>
               </Pressable>
             )}
           </View>
@@ -62,9 +64,9 @@ export function PasteScreen({ theme, initialText, onRead }: Props) {
           accessibilityRole="button"
           disabled={empty}
           onPress={() => onRead(text)}
-          style={[styles.primary, { backgroundColor: theme.accent, opacity: empty ? 0.4 : 1 }]}
+          style={({ pressed }) => [styles.primary, { backgroundColor: theme.ink, opacity: empty ? 0.3 : pressed ? 0.8 : 1 }]}
         >
-          <Text style={[styles.primaryText, { color: theme.onAccent }]}>Start reading</Text>
+          <Text style={[styles.primaryText, { color: theme.onInk }]}>Start reading</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -73,15 +75,14 @@ export function PasteScreen({ theme, initialText, onRead }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { padding: 20, maxWidth: 760, width: "100%", alignSelf: "center" },
-  kicker: { fontSize: 12, fontWeight: "800", letterSpacing: 2, marginBottom: 8 },
-  title: { fontSize: 30, fontWeight: "800", marginBottom: 8 },
-  sub: { fontSize: 15, lineHeight: 22, marginBottom: 20 },
-  input: { minHeight: 260, borderWidth: 1, borderRadius: 14, padding: 16, fontSize: 16, lineHeight: 24 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginVertical: 14 },
-  actions: { flexDirection: "row", gap: 8 },
-  count: { fontSize: 13 },
-  ghost: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  primary: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
-  primaryText: { fontSize: 17, fontWeight: "700" },
+  content: { paddingHorizontal: 24, paddingVertical: 16, maxWidth: 640, width: "100%", alignSelf: "center" },
+  mark: { fontSize: 15, fontWeight: "600", marginBottom: 32 },
+  title: { fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.4, marginBottom: 8 },
+  sub: { fontSize: 15, lineHeight: 22, marginBottom: 24 },
+  input: { minHeight: 280, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 16, fontSize: 16, lineHeight: 24 },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12, marginBottom: 28 },
+  links: { flexDirection: "row", gap: 20 },
+  small: { fontSize: 14 },
+  primary: { borderRadius: 10, paddingVertical: 15, alignItems: "center" },
+  primaryText: { fontSize: 16, fontWeight: "600", letterSpacing: 0.2 },
 });
