@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cleanText } from "./cleanText";
-import { layoutText, splitPhrases, splitSentences, wrapEven } from "./layout";
+import { layoutText, splitSentences } from "./layout";
 
 describe("cleanText", () => {
   it("joins hard-wrapped lines inside a paragraph", () => {
@@ -60,43 +60,6 @@ describe("splitSentences", () => {
   });
 });
 
-describe("wrapEven", () => {
-  const text =
-    "Paxos gets agreement right even if some of the replicas are unavailable, have unreliable network connections, or are isolated in partitions.";
-
-  it("never exceeds the max width unless a single word is longer", () => {
-    for (const line of wrapEven(text, 40)) expect(line.length).toBeLessThanOrEqual(40);
-  });
-
-  it("balances line lengths", () => {
-    const lines = wrapEven(text, 40);
-    const lengths = lines.map((l) => l.length);
-    expect(Math.max(...lengths) - Math.min(...lengths)).toBeLessThanOrEqual(12);
-  });
-
-  it("uses no more lines than a greedy wrap", () => {
-    expect(wrapEven(text, 40).join(" ")).toBe(text);
-  });
-
-  it("handles words longer than the width", () => {
-    expect(wrapEven("a supercalifragilistic word", 5)).toEqual(["a", "supercalifragilistic", "word"]);
-  });
-});
-
-describe("splitPhrases", () => {
-  it("breaks at commas and merges tiny fragments", () => {
-    const out = splitPhrases(
-      "When the primary fails, the backup takes over, and clients retry their requests on another server.",
-      52,
-    );
-    expect(out.join(" ")).toBe(
-      "When the primary fails, the backup takes over, and clients retry their requests on another server.",
-    );
-    expect(out.length).toBeGreaterThan(1);
-    for (const p of out) expect(p.length).toBeLessThanOrEqual(52);
-  });
-});
-
 describe("layoutText", () => {
   const raw = "First sentence here. Second one follows, with a clause.\n\nNew paragraph starts.";
 
@@ -114,7 +77,7 @@ describe("layoutText", () => {
 
   it("every mode preserves all the words", () => {
     const words = (s: string) => s.split(/\s+/).filter(Boolean).join(" ");
-    for (const mode of ["even", "sentence", "phrase", "paragraph"] as const) {
+    for (const mode of ["sentence", "paragraph"] as const) {
       const joined = layoutText(raw, mode).map((l) => l.text).join(" ");
       expect(words(joined)).toBe(words(raw));
     }

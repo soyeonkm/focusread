@@ -1,15 +1,55 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, Platform, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DEFAULT_OPTIONS, Line, LayoutMode, layoutText } from "../lib/layout";
+import { Line, LayoutMode, layoutText } from "../lib/layout";
 import { Theme } from "./theme";
 
-const MODES: { key: LayoutMode; label: string }[] = [
-  { key: "even", label: "Even lines" },
+type Mode = LayoutMode | "lines";
+
+const MODES: { key: Mode; label: string }[] = [
+  { key: "lines", label: "Lines" },
   { key: "sentence", label: "Sentences" },
-  { key: "phrase", label: "Phrases" },
   { key: "paragraph", label: "Paragraphs" },
 ];
+
+/** Web has no onTextLayout, so find where the browser wrapped a paragraph by checking each character's position. */
+function measureLineLengthsWeb(el: HTMLElement): number[] {
+  // ponytail: one Range per character, fine for article-sized text; switch to per-word if paragraphs get huge.
+  const lens: number[] = [];
+  const range = document.createRange();
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let top: number | null = null;
+  let len = 0;
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const s = n.textContent ?? "";
+    for (let i = 0; i < s.length; i++) {
+      range.setStart(n, i);
+      range.setEnd(n, i + 1);
+      const rect = range.getClientRects()[0];
+      if (rect && top !== null && rect.top > top + 1 && len > 0) {
+        lens.push(len);
+        len = 0;
+      }
+      if (rect) top = rect.top;
+      len++;
+    }
+  }
+  if (len > 0) lens.push(len);
+  return lens;
+}
+
+/** Cut a paragraph into its on-screen lines; the last piece takes any remainder so the text always adds up. */
+function sliceByLengths(text: string, lens: number[] | undefined): string[] {
+  if (!lens?.length) return [text];
+  const out: string[] = [];
+  let at = 0;
+  lens.forEach((n, i) => {
+    const piece = i === lens.length - 1 ? text.slice(at) : text.slice(at, at + n);
+    if (piece) out.push(piece);
+    at += n;
+  });
+  return out;
+}
 
 interface Props {
   text: string;
@@ -20,8 +60,9 @@ interface Props {
 
 export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState<LayoutMode>("even");
-  const [maxChars, setMaxChars] = useState(DEFAULT_OPTIONS.maxChars);
+  const [mode, setMode] = useState<Mode>("lines");
+  // Character count of each on-screen line, per paragraph, as last rendered.
+  const [lineLens, setLineLens] = useState<Record<number, number[]>>({});
   const [fontSize, setFontSize] = useState(20);
   const [dim, setDim] = useState(true);
   const [wpm, setWpm] = useState(220);
@@ -32,8 +73,18 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
 
   const scrollRef = useRef<ScrollViewInstance>(null);
   const paraBox = useRef<{ y: number; h: number }[]>([]);
+  const paraEls = useRef<unknown[]>([]);
 
-  const lines = useMemo(() => layoutText(text, mode, { maxChars }), [text, mode, maxChars]);
+  const lines = useMemo(
+    () =>
+      mode === "lines"
+        ? layoutText(text, "paragraph").flatMap((l) => sliceByLengths(l.text, lineLens[l.paragraph]).map((t) => ({ text: t, paragraph: l.paragraph })))
+        : layoutText(text, mode),
+    [text, mode, lineLens],
+  );
+
+  const saveLineLens = (p: number, lens: number[]) =>
+    setLineLens((m) => (m[p]?.join() === lens.join() ? m : { ...m, [p]: lens }));
 
   // Text always flows as paragraphs; the mode only decides which chunk gets highlighted.
   const paragraphs = useMemo(() => {
@@ -74,7 +125,7 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
   // Auto-advance at the chosen reading speed.
   useEffect(() => {
     if (!playing || safeIndex >= lines.length - 1) return;
-    const words = lines[safeIndex].text.split(/\s+/).length;
+    const words = lines[safeIndex].text.trim().split(/\s+/).length;
     const ms = Math.max(700, (words / wpm) * 60000);
     const t = setTimeout(() => {
       setIndex(safeIndex + 1);
@@ -124,7 +175,6 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
       {showSettings && (
         <View style={[styles.settings, { backgroundColor: theme.panel, borderColor: theme.line }]}>
           <Stepper theme={theme} label="Text size" value={`${fontSize}`} onMinus={() => setFontSize((s) => Math.max(14, s - 2))} onPlus={() => setFontSize((s) => Math.min(36, s + 2))} />
-          <Stepper theme={theme} label="Chunk length" value={`${maxChars}`} onMinus={() => setMaxChars((c) => Math.max(24, c - 4))} onPlus={() => setMaxChars((c) => Math.min(90, c + 4))} />
           <Stepper theme={theme} label="Pace (words/min)" value={`${wpm}`} onMinus={() => setWpm((w) => Math.max(80, w - 20))} onPlus={() => setWpm((w) => Math.min(500, w + 20))} />
           <View style={styles.settingRow}>
             <Chip theme={theme} label={`Dim other lines: ${dim ? "on" : "off"}`} onPress={() => setDim((d) => !d)} />
@@ -142,9 +192,15 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
           {paragraphs.map((g, p) => (
             <Text
               key={p}
+              ref={(el) => {
+                paraEls.current[p] = el;
+              }}
               onLayout={(e) => {
                 paraBox.current[p] = { y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height };
+                const el = paraEls.current[p];
+                if (Platform.OS === "web" && el) saveLineLens(p, measureLineLengthsWeb(el as unknown as HTMLElement));
               }}
+              onTextLayout={(e) => saveLineLens(p, e.nativeEvent.lines.map((l) => l.text.length))}
               style={{ color: theme.ink, fontSize, lineHeight: fontSize * 1.55, marginTop: p > 0 ? fontSize * 1.1 : 0 }}
             >
               {g.lines.map((line, j) => {
@@ -153,7 +209,7 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
                 return (
                   <Text
                     key={i}
-                    accessibilityRole="button"
+                    // No accessibilityRole="button": on web it renders an inline-block <button>, breaking the paragraph flow.
                     onPress={() => setIndex(i)}
                     style={{
                       backgroundColor: focused ? theme.band : "transparent",
@@ -161,7 +217,8 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
                       color: dim && !focused ? theme.ink + "47" : theme.ink,
                     }}
                   >
-                    {j > 0 ? " " : ""}
+                    {/* Line slices already carry their own spaces; sentences/paragraphs need one between them. */}
+                    {j > 0 && mode !== "lines" ? " " : ""}
                     {line.text}
                   </Text>
                 );

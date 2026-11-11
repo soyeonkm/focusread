@@ -1,19 +1,12 @@
 import { cleanText } from "./cleanText";
 
-export type LayoutMode = "even" | "sentence" | "phrase" | "paragraph";
+export type LayoutMode = "sentence" | "paragraph";
 
 export interface Line {
   text: string;
   /** Index of the paragraph this line came from; the UI adds spacing when it changes. */
   paragraph: number;
 }
-
-export interface LayoutOptions {
-  /** Target maximum characters per line (used by "even" and "phrase"). */
-  maxChars: number;
-}
-
-export const DEFAULT_OPTIONS: LayoutOptions = { maxChars: 52 };
 
 const ABBREVIATIONS = new Set([
   "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc", "e.g", "i.e",
@@ -51,79 +44,12 @@ function endsSentence(word: string): boolean {
   return true;
 }
 
-/**
- * Wrap text into lines of similar length. Finds the narrowest width that still fits in the
- * same number of lines as a greedy wrap at maxChars, so lines come out balanced instead of
- * ending with one long line and one stub.
- */
-export function wrapEven(text: string, maxChars: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [];
-  const longestWord = words.reduce((m, w) => Math.max(m, w.length), 0);
-  const limit = Math.max(maxChars, longestWord);
-  const target = greedy(words, limit).length;
-
-  let lo = longestWord;
-  let hi = limit;
-  while (lo < hi) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (greedy(words, mid).length <= target) hi = mid;
-    else lo = mid + 1;
-  }
-  return greedy(words, lo);
-}
-
-function greedy(words: string[], width: number): string[] {
-  const lines: string[] = [];
-  let line = "";
-  for (const w of words) {
-    if (line === "") line = w;
-    else if (line.length + 1 + w.length <= width) line += " " + w;
-    else {
-      lines.push(line);
-      line = w;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-/** Break a sentence into short idea-sized chunks at punctuation. */
-export function splitPhrases(sentence: string, maxChars: number, minChars = 18): string[] {
-  // Avoids regex lookbehind, which some mobile JS engines do not support.
-  const pieces = (sentence.match(/[^,;:—–]+[,;:—–]*\s*/g) ?? [sentence]).map((p) => p.trim()).filter(Boolean);
-  const merged: string[] = [];
-  for (const piece of pieces) {
-    const last = merged[merged.length - 1];
-    if (last !== undefined && (last.length < minChars || piece.length < minChars) && last.length + 1 + piece.length <= maxChars) {
-      merged[merged.length - 1] = last + " " + piece;
-    } else {
-      merged.push(piece);
-    }
-  }
-  return merged.flatMap((m) => (m.length > maxChars ? wrapEven(m, maxChars) : [m]));
-}
-
-export function layoutText(raw: string, mode: LayoutMode, options: LayoutOptions = DEFAULT_OPTIONS): Line[] {
+export function layoutText(raw: string, mode: LayoutMode): Line[] {
   const paragraphs = cleanText(raw);
   const lines: Line[] = [];
 
   paragraphs.forEach((para, p) => {
-    let rows: string[];
-    switch (mode) {
-      case "even":
-        rows = wrapEven(para, options.maxChars);
-        break;
-      case "sentence":
-        rows = splitSentences(para);
-        break;
-      case "phrase":
-        rows = splitSentences(para).flatMap((s) => splitPhrases(s, options.maxChars));
-        break;
-      case "paragraph":
-        rows = [para];
-        break;
-    }
+    const rows = mode === "sentence" ? splitSentences(para) : [para];
     for (const text of rows) lines.push({ text, paragraph: p });
   });
 
