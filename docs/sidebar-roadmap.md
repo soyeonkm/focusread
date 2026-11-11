@@ -7,7 +7,7 @@ Each "project" is one pasted text that was opened with **Start reading**.
 
 | # | Ticket | Status |
 |---|--------|--------|
-| 1 | Move navigation to Expo Router | Not started |
+| 1 | Move navigation to Expo Router | Done |
 | 2 | Project storage | Not started |
 | 3 | Automatic project titles | Not started |
 | 4 | Sidebar layout (static) | Not started |
