@@ -8,7 +8,7 @@ Each "project" is one pasted text that was opened with **Start reading**.
 | # | Ticket | Status |
 |---|--------|--------|
 | 1 | Move navigation to Expo Router | Done |
-| 2 | Project storage | Not started |
+| 2 | Project storage | Done |
 | 3 | Automatic project titles | Not started |
 | 4 | Sidebar layout (static) | Not started |
 | 5 | Wire sidebar to projects | Not started |
@@ -33,7 +33,7 @@ Update this table as each ticket lands. One branch + PR per ticket.
 | Topic | Decision | Why |
 |-------|----------|-----|
 | Navigation | Expo Router. `/` = new project, `/p/[id]` = reader for a project. | AGENTS.md requires Expo Router; per-project URLs make reload and browser back work. |
-| Storage | Local to the device (no server, no accounts). Library chosen in ticket 2 after checking the SDK 58 docs (`expo-sqlite` key-value store vs. AsyncStorage). | No backend exists; keeps it simple. |
+| Storage | Local to the device (no server, no accounts), via AsyncStorage. Index of titles under one key, each text under its own key. | No backend exists. AsyncStorage needs no web setup; the expo-sqlite store needs wasm bundling and COOP/COEP headers on web. Web limit is ~5 MB (localStorage). |
 | Titles | Local heuristic for now (first sentence, trimmed). AI summary comes later as its own ticket; `makeTitle` is the only thing it replaces. | Instant, free, offline. AI needs a small server to hold the API key. |
 | Narrow screens | Below ~768px the sidebar opens as an overlay drawer that closes after choosing a project, instead of pushing the text aside. | A permanent sidebar on a phone would leave no room to read. |
 | Same text twice | Each **Start reading** press creates a new project. | Matches "save when user clicks Start reading"; no dedupe logic. |
