@@ -1,7 +1,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, Platform, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DEFAULT_OPTIONS, LayoutMode, layoutText } from "../lib/layout";
+import { DEFAULT_OPTIONS, Line, LayoutMode, layoutText } from "../lib/layout";
 import { Theme } from "./theme";
 
 const MODES: { key: LayoutMode; label: string }[] = [
@@ -31,52 +31,55 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   const scrollRef = useRef<ScrollViewInstance>(null);
-  const rowY = useRef<number[]>([]);
+  const paraBox = useRef<{ y: number; h: number }[]>([]);
 
-  // Cap line length to what physically fits so each laid-out line stays on one row.
-  const fitChars = viewport.width > 0 ? Math.max(18, Math.floor((viewport.width - 72) / (fontSize * 0.56))) : maxChars;
-  const effectiveChars = Math.min(maxChars, fitChars);
+  const lines = useMemo(() => layoutText(text, mode, { maxChars }), [text, mode, maxChars]);
 
-  const lines = useMemo(
-    () => layoutText(text, mode, { maxChars: effectiveChars }),
-    [text, mode, effectiveChars],
-  );
+  // Text always flows as paragraphs; the mode only decides which chunk gets highlighted.
+  const paragraphs = useMemo(() => {
+    const out: { start: number; lines: Line[] }[] = [];
+    lines.forEach((l, i) => {
+      if (i > 0 && lines[i - 1].paragraph === l.paragraph) out[out.length - 1].lines.push(l);
+      else out.push({ start: i, lines: [l] });
+    });
+    return out;
+  }, [lines]);
   const safeIndex = Math.min(index, Math.max(0, lines.length - 1));
 
-  // Keep the reader in the same paragraph when the layout changes.
-  const paragraphRef = useRef(0);
-  paragraphRef.current = lines[safeIndex]?.paragraph ?? 0;
-  const lastLinesRef = useRef(lines);
-  useEffect(() => {
-    if (lastLinesRef.current === lines) return;
-    lastLinesRef.current = lines;
-    rowY.current = [];
-    const found = lines.findIndex((l) => l.paragraph === paragraphRef.current);
-    setIndex(found >= 0 ? found : 0);
-  }, [lines]);
+  // Keep the reader in the same paragraph when the layout changes (adjusting state during render).
+  const [prevLines, setPrevLines] = useState(lines);
+  if (prevLines !== lines) {
+    setPrevLines(lines);
+    const para = prevLines[Math.min(index, prevLines.length - 1)]?.paragraph ?? 0;
+    setIndex(Math.max(0, lines.findIndex((l) => l.paragraph === para)));
+  }
 
   const go = useCallback(
     (delta: number) => setIndex((i) => Math.min(Math.max(0, i + delta), Math.max(0, lines.length - 1))),
     [lines.length],
   );
 
-  // Scroll the focused line to about a third of the way down the screen.
+  // Scroll the focused chunk to about a third of the way down the screen. Nested text spans
+  // can't be measured, so estimate its y from how far into the paragraph it starts.
   useEffect(() => {
-    const y = rowY.current[safeIndex];
-    if (y === undefined || viewport.height === 0) return;
+    const p = paragraphs.findIndex((g) => safeIndex >= g.start && safeIndex < g.start + g.lines.length);
+    const box = paraBox.current[p];
+    if (!box || viewport.height === 0) return;
+    const g = paragraphs[p];
+    const len = (ls: Line[]) => ls.reduce((n, l) => n + l.text.length + 1, 0);
+    const y = box.y + box.h * (len(g.lines.slice(0, safeIndex - g.start)) / len(g.lines));
     scrollRef.current?.scrollTo({ y: Math.max(0, y - viewport.height * 0.33), animated: true });
-  }, [safeIndex, viewport.height, lines]);
+  }, [safeIndex, viewport.height, paragraphs]);
 
   // Auto-advance at the chosen reading speed.
   useEffect(() => {
-    if (!playing) return;
-    if (safeIndex >= lines.length - 1) {
-      setPlaying(false);
-      return;
-    }
+    if (!playing || safeIndex >= lines.length - 1) return;
     const words = lines[safeIndex].text.split(/\s+/).length;
     const ms = Math.max(700, (words / wpm) * 60000);
-    const t = setTimeout(() => setIndex(safeIndex + 1), ms);
+    const t = setTimeout(() => {
+      setIndex(safeIndex + 1);
+      if (safeIndex + 1 >= lines.length - 1) setPlaying(false);
+    }, ms);
     return () => clearTimeout(t);
   }, [playing, safeIndex, wpm, lines]);
 
@@ -121,7 +124,7 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
       {showSettings && (
         <View style={[styles.settings, { backgroundColor: theme.panel, borderColor: theme.line }]}>
           <Stepper theme={theme} label="Text size" value={`${fontSize}`} onMinus={() => setFontSize((s) => Math.max(14, s - 2))} onPlus={() => setFontSize((s) => Math.min(36, s + 2))} />
-          <Stepper theme={theme} label="Line length" value={`${effectiveChars}`} onMinus={() => setMaxChars((c) => Math.max(24, c - 4))} onPlus={() => setMaxChars((c) => Math.min(90, c + 4))} />
+          <Stepper theme={theme} label="Chunk length" value={`${maxChars}`} onMinus={() => setMaxChars((c) => Math.max(24, c - 4))} onPlus={() => setMaxChars((c) => Math.min(90, c + 4))} />
           <Stepper theme={theme} label="Pace (words/min)" value={`${wpm}`} onMinus={() => setWpm((w) => Math.max(80, w - 20))} onPlus={() => setWpm((w) => Math.min(500, w + 20))} />
           <View style={styles.settingRow}>
             <Chip theme={theme} label={`Dim other lines: ${dim ? "on" : "off"}`} onPress={() => setDim((d) => !d)} />
@@ -136,37 +139,35 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
 
       <ScrollView ref={scrollRef} style={styles.scroll} onLayout={onScrollLayout} contentContainerStyle={styles.content}>
         <View style={styles.column}>
-          {lines.map((line, i) => {
-            const focused = i === safeIndex;
-            const newParagraph = i > 0 && lines[i - 1].paragraph !== line.paragraph;
-            return (
-              <Pressable
-                key={i}
-                accessibilityRole="button"
-                accessibilityLabel={`Line ${i + 1}`}
-                onPress={() => setIndex(i)}
-                onLayout={(e) => {
-                  rowY.current[i] = e.nativeEvent.layout.y;
-                }}
-                style={[
-                  styles.row,
-                  newParagraph && { marginTop: fontSize * 1.1 },
-                  { backgroundColor: focused ? theme.band : "transparent", borderLeftColor: focused ? theme.accent : "transparent" },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: theme.ink,
-                    fontSize,
-                    lineHeight: fontSize * 1.55,
-                    opacity: dim && !focused ? 0.28 : 1,
-                  }}
-                >
-                  {line.text}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {paragraphs.map((g, p) => (
+            <Text
+              key={p}
+              onLayout={(e) => {
+                paraBox.current[p] = { y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height };
+              }}
+              style={{ color: theme.ink, fontSize, lineHeight: fontSize * 1.55, marginTop: p > 0 ? fontSize * 1.1 : 0 }}
+            >
+              {g.lines.map((line, j) => {
+                const i = g.start + j;
+                const focused = i === safeIndex;
+                return (
+                  <Text
+                    key={i}
+                    accessibilityRole="button"
+                    onPress={() => setIndex(i)}
+                    style={{
+                      backgroundColor: focused ? theme.band : "transparent",
+                      // Nested spans ignore opacity on native, so dim with an alpha color (#rrggbb + 47 ≈ 28%).
+                      color: dim && !focused ? theme.ink + "47" : theme.ink,
+                    }}
+                  >
+                    {j > 0 ? " " : ""}
+                    {line.text}
+                  </Text>
+                );
+              })}
+            </Text>
+          ))}
         </View>
       </ScrollView>
 
@@ -228,7 +229,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingVertical: 40, paddingHorizontal: 16, paddingBottom: 260 },
   column: { alignSelf: "center", maxWidth: 820, width: "100%" },
-  row: { borderLeftWidth: 4, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
   controls: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1 },
   ctl: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, minWidth: 84, alignItems: "center" },
   ctlMain: { minWidth: 96 },
