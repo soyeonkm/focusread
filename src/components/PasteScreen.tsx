@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SidebarToggle } from "./Sidebar";
 import { Theme } from "./theme";
 
 const SAMPLE = `Paxos gets agreement right even if some of the replicas are unavailable, have unreliable network connections, or are isolated in their own network partitions. As long as a peer can assemble a majority of replicas, it can process client operations.
@@ -23,9 +24,12 @@ export function PasteScreen({ theme, initialText, onRead }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: theme.bg, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 16 }]}
+      style={[styles.root, { backgroundColor: theme.bg, paddingTop: insets.top + 10, paddingBottom: insets.bottom + 16 }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <View style={styles.header}>
+        <SidebarToggle theme={theme} />
+      </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.mark, { color: theme.accent }]}>FocusRead</Text>
         <Text style={[styles.title, { color: theme.ink }]}>What are you reading?</Text>
@@ -75,6 +79,7 @@ export function PasteScreen({ theme, initialText, onRead }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  header: { height: 36, paddingHorizontal: 16, flexDirection: "row", alignItems: "center" },
   content: { paddingHorizontal: 24, paddingVertical: 16, maxWidth: 640, width: "100%", alignSelf: "center" },
   mark: { fontSize: 15, fontWeight: "600", marginBottom: 32 },
   title: { fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.4, marginBottom: 8 },

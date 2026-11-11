@@ -6,6 +6,8 @@ export type ThemeName = "light" | "sepia" | "dark";
 export interface Theme {
   name: ThemeName;
   bg: string;
+  /** Sidebar background, a step off the page. */
+  panel: string;
   ink: string;
   muted: string;
   line: string;
@@ -19,6 +21,7 @@ export const THEMES: Record<ThemeName, Theme> = {
   light: {
     name: "light",
     bg: "#fbfaf7",
+    panel: "#f3f1ec",
     ink: "#1d1c1a",
     muted: "#85817a",
     line: "#e4e0d8",
@@ -29,6 +32,7 @@ export const THEMES: Record<ThemeName, Theme> = {
   sepia: {
     name: "sepia",
     bg: "#f3ead6",
+    panel: "#ebe0c8",
     ink: "#3a2f22",
     muted: "#8a7a62",
     line: "#ddd0b4",
@@ -39,6 +43,7 @@ export const THEMES: Record<ThemeName, Theme> = {
   dark: {
     name: "dark",
     bg: "#171614",
+    panel: "#1f1e1b",
     ink: "#e9e4da",
     muted: "#8f897e",
     line: "#2e2c28",
