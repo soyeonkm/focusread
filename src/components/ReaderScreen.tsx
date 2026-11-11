@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { LayoutChangeEvent, Platform, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Line, LayoutMode, layoutText } from "../lib/layout";
-import { Theme } from "./theme";
+import { SERIF, Theme, ThemeName } from "./theme";
 
 type Mode = LayoutMode | "lines";
 
@@ -54,11 +54,11 @@ function sliceByLengths(text: string, lens: number[] | undefined): string[] {
 interface Props {
   text: string;
   theme: Theme;
-  onCycleTheme: () => void;
+  onSetTheme: (name: ThemeName) => void;
   onBack: () => void;
 }
 
-export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
+export function ReaderScreen({ text, theme, onSetTheme, onBack }: Props) {
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<Mode>("lines");
   // Character count of each on-screen line, per paragraph, as last rendered.
@@ -163,28 +163,26 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
   return (
     <View style={[styles.root, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <Chip theme={theme} label="← Back" onPress={onBack} />
-        <View style={styles.modes}>
-          {MODES.map((m) => (
-            <Chip key={m.key} theme={theme} label={m.label} active={mode === m.key} onPress={() => setMode(m.key)} />
-          ))}
-        </View>
-        <Chip theme={theme} label={showSettings ? "Close" : "Settings"} onPress={() => setShowSettings((s) => !s)} />
+        <TextButton theme={theme} label="Back" onPress={onBack} />
+        <Segmented theme={theme} options={MODES} value={mode} onChange={setMode} />
+        <TextButton theme={theme} label={showSettings ? "Done" : "Aa"} accessibilityLabel="Reading settings" onPress={() => setShowSettings((s) => !s)} />
       </View>
 
       {showSettings && (
-        <View style={[styles.settings, { backgroundColor: theme.panel, borderColor: theme.line }]}>
+        <View style={[styles.settings, { borderBottomColor: theme.line }]}>
           <Stepper theme={theme} label="Text size" value={`${fontSize}`} onMinus={() => setFontSize((s) => Math.max(14, s - 2))} onPlus={() => setFontSize((s) => Math.min(36, s + 2))} />
-          <Stepper theme={theme} label="Pace (words/min)" value={`${wpm}`} onMinus={() => setWpm((w) => Math.max(80, w - 20))} onPlus={() => setWpm((w) => Math.min(500, w + 20))} />
-          <View style={styles.settingRow}>
-            <Chip theme={theme} label={`Dim other lines: ${dim ? "on" : "off"}`} onPress={() => setDim((d) => !d)} />
-            <Chip theme={theme} label={`Theme: ${theme.name}`} onPress={onCycleTheme} />
-          </View>
+          <Stepper theme={theme} label="Words per minute" value={`${wpm}`} onMinus={() => setWpm((w) => Math.max(80, w - 20))} onPlus={() => setWpm((w) => Math.min(500, w + 20))} />
+          <SettingRow theme={theme} label="Fade other text">
+            <Segmented theme={theme} options={ON_OFF} value={dim} onChange={setDim} />
+          </SettingRow>
+          <SettingRow theme={theme} label="Theme">
+            <Segmented theme={theme} options={THEME_OPTIONS} value={theme.name} onChange={onSetTheme} />
+          </SettingRow>
         </View>
       )}
 
       <View style={[styles.progressTrack, { backgroundColor: theme.line }]}>
-        <View style={{ height: 3, width: `${progress * 100}%`, backgroundColor: theme.accent }} />
+        <View style={{ height: 2, width: `${progress * 100}%`, backgroundColor: theme.accent }} />
       </View>
 
       <ScrollView ref={scrollRef} style={styles.scroll} onLayout={onScrollLayout} contentContainerStyle={styles.content}>
@@ -201,7 +199,7 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
                 if (Platform.OS === "web" && el) saveLineLens(p, measureLineLengthsWeb(el as unknown as HTMLElement));
               }}
               onTextLayout={(e) => saveLineLens(p, e.nativeEvent.lines.map((l) => l.text.length))}
-              style={{ color: theme.ink, fontSize, lineHeight: fontSize * 1.55, marginTop: p > 0 ? fontSize * 1.1 : 0 }}
+              style={{ color: theme.ink, fontFamily: SERIF, fontSize, lineHeight: fontSize * 1.6, marginTop: p > 0 ? fontSize * 1.2 : 0 }}
             >
               {g.lines.map((line, j) => {
                 const i = g.start + j;
@@ -228,67 +226,112 @@ export function ReaderScreen({ text, theme, onCycleTheme, onBack }: Props) {
         </View>
       </ScrollView>
 
-      <View style={[styles.controls, { borderTopColor: theme.line, backgroundColor: theme.panel, paddingBottom: insets.bottom + 10 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous line" onPress={() => go(-1)} style={[styles.ctl, { borderColor: theme.line }]}>
-          <Text style={[styles.ctlText, { color: theme.ink }]}>↑ Prev</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={playing ? "Pause" : "Play at set pace"}
-          onPress={() => setPlaying((p) => !p)}
-          style={[styles.ctl, styles.ctlMain, { backgroundColor: theme.accent, borderColor: theme.accent }]}
-        >
-          <Text style={[styles.ctlText, { color: theme.onAccent }]}>{playing ? "Pause" : "Play"}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next line" onPress={() => go(1)} style={[styles.ctl, { borderColor: theme.line }]}>
-          <Text style={[styles.ctlText, { color: theme.ink }]}>Next ↓</Text>
-        </Pressable>
+      <View style={[styles.controls, { borderTopColor: theme.line, paddingBottom: insets.bottom + 12 }]}>
         <Text style={[styles.status, { color: theme.muted }]}>
-          {lines.length ? safeIndex + 1 : 0} / {lines.length}
+          {lines.length ? safeIndex + 1 : 0} of {lines.length}
         </Text>
+        <View style={styles.ctlRow}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Previous" onPress={() => go(-1)} style={({ pressed }) => [styles.ctl, { borderColor: theme.line, opacity: pressed ? 0.6 : 1 }]}>
+            <Text style={[styles.ctlText, { color: theme.ink }]}>Previous</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={playing ? "Pause" : "Play at set pace"}
+            onPress={() => setPlaying((p) => !p)}
+            style={({ pressed }) => [styles.ctl, styles.ctlMain, { backgroundColor: theme.ink, borderColor: theme.ink, opacity: pressed ? 0.8 : 1 }]}
+          >
+            <Text style={[styles.ctlText, { color: theme.onInk }]}>{playing ? "Pause" : "Play"}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Next" onPress={() => go(1)} style={({ pressed }) => [styles.ctl, { borderColor: theme.line, opacity: pressed ? 0.6 : 1 }]}>
+            <Text style={[styles.ctlText, { color: theme.ink }]}>Next</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
 }
 
-function Chip({ theme, label, onPress, active }: { theme: Theme; label: string; onPress: () => void; active?: boolean }) {
+const ON_OFF: { key: boolean; label: string }[] = [
+  { key: true, label: "On" },
+  { key: false, label: "Off" },
+];
+
+const THEME_OPTIONS: { key: ThemeName; label: string }[] = [
+  { key: "light", label: "Light" },
+  { key: "sepia", label: "Sepia" },
+  { key: "dark", label: "Dark" },
+];
+
+function TextButton({ theme, label, onPress, accessibilityLabel }: { theme: Theme; label: string; onPress: () => void; accessibilityLabel?: string }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!active }}
-      onPress={onPress}
-      style={[styles.chip, { borderColor: active ? theme.accent : theme.line, backgroundColor: active ? theme.band : "transparent" }]}
-    >
-      <Text style={{ color: active ? theme.accent : theme.ink, fontSize: 13, fontWeight: active ? "700" : "500" }}>{label}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} hitSlop={10} onPress={onPress} style={({ pressed }) => [styles.textBtn, { opacity: pressed ? 0.5 : 1 }]}>
+      <Text style={{ color: theme.ink, fontSize: 15, fontWeight: "500" }}>{label}</Text>
     </Pressable>
   );
 }
 
-function Stepper({ theme, label, value, onMinus, onPlus }: { theme: Theme; label: string; value: string; onMinus: () => void; onPlus: () => void }): ReactNode {
+function Segmented<K extends string | boolean>({ theme, options, value, onChange }: { theme: Theme; options: { key: K; label: string }[]; value: K; onChange: (k: K) => void }) {
+  return (
+    <View style={[styles.seg, { backgroundColor: theme.line }]}>
+      {options.map((o) => {
+        const active = o.key === value;
+        return (
+          <Pressable
+            key={String(o.key)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            onPress={() => onChange(o.key)}
+            style={[styles.segItem, active && { backgroundColor: theme.bg }]}
+          >
+            <Text style={{ color: active ? theme.ink : theme.muted, fontSize: 13, fontWeight: active ? "600" : "500" }}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function SettingRow({ theme, label, children }: { theme: Theme; label: string; children: ReactNode }) {
   return (
     <View style={styles.settingRow}>
-      <Text style={{ color: theme.ink, flex: 1, fontSize: 14 }}>{label}</Text>
-      <Chip theme={theme} label="−" onPress={onMinus} />
-      <Text style={{ color: theme.ink, width: 44, textAlign: "center", fontVariant: ["tabular-nums"] }}>{value}</Text>
-      <Chip theme={theme} label="+" onPress={onPlus} />
+      <Text style={{ color: theme.ink, flex: 1, fontSize: 15 }}>{label}</Text>
+      {children}
     </View>
+  );
+}
+
+function Stepper({ theme, label, value, onMinus, onPlus }: { theme: Theme; label: string; value: string; onMinus: () => void; onPlus: () => void }) {
+  const btn = (text: string, a11y: string, onPress: () => void) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={a11y} onPress={onPress} style={({ pressed }) => [styles.stepBtn, { borderColor: theme.line, opacity: pressed ? 0.5 : 1 }]}>
+      <Text style={{ color: theme.ink, fontSize: 18 }}>{text}</Text>
+    </Pressable>
+  );
+  return (
+    <SettingRow theme={theme} label={label}>
+      {btn("−", `Decrease ${label.toLowerCase()}`, onMinus)}
+      <Text style={{ color: theme.ink, width: 48, textAlign: "center", fontSize: 15, fontVariant: ["tabular-nums"] }}>{value}</Text>
+      {btn("+", `Increase ${label.toLowerCase()}`, onPlus)}
+    </SettingRow>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, gap: 8, flexWrap: "wrap" },
-  modes: { flexDirection: "row", gap: 6, flexWrap: "wrap", flexShrink: 1 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  settings: { marginHorizontal: 12, marginBottom: 8, borderWidth: 1, borderRadius: 14, padding: 12, gap: 10 },
-  settingRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  progressTrack: { height: 3 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
+  textBtn: { minWidth: 44, minHeight: 32, justifyContent: "center", alignItems: "center" },
+  seg: { flexDirection: "row", borderRadius: 9, padding: 2, flexShrink: 1 },
+  segItem: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 7, alignItems: "center" },
+  settings: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12, gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, alignSelf: "center", width: "100%", maxWidth: 560 },
+  settingRow: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36 },
+  stepBtn: { width: 36, height: 36, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
+  progressTrack: { height: 2 },
   scroll: { flex: 1 },
-  content: { paddingVertical: 40, paddingHorizontal: 16, paddingBottom: 260 },
-  column: { alignSelf: "center", maxWidth: 820, width: "100%" },
-  controls: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1 },
-  ctl: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, minWidth: 84, alignItems: "center" },
-  ctlMain: { minWidth: 96 },
-  ctlText: { fontSize: 15, fontWeight: "700" },
-  status: { marginLeft: "auto", fontSize: 13, fontVariant: ["tabular-nums"] },
+  content: { paddingTop: 40, paddingHorizontal: 24, paddingBottom: 260 },
+  column: { alignSelf: "center", maxWidth: 680, width: "100%" },
+  controls: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingTop: 8, gap: 8 },
+  status: { textAlign: "center", fontSize: 12, fontVariant: ["tabular-nums"] },
+  ctlRow: { flexDirection: "row", gap: 10, alignSelf: "center", width: "100%", maxWidth: 480 },
+  ctl: { flex: 1, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, paddingVertical: 13, alignItems: "center" },
+  ctlMain: { flex: 1.3 },
+  ctlText: { fontSize: 15, fontWeight: "600" },
 });

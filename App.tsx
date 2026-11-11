@@ -3,7 +3,7 @@ import { useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { PasteScreen } from "./src/components/PasteScreen";
 import { ReaderScreen } from "./src/components/ReaderScreen";
-import { THEME_ORDER, THEMES, ThemeName } from "./src/components/theme";
+import { THEMES, ThemeName } from "./src/components/theme";
 
 export default function App() {
   const [themeName, setThemeName] = useState<ThemeName>("light");
@@ -11,13 +11,11 @@ export default function App() {
   const [reading, setReading] = useState(false);
   const theme = THEMES[themeName];
 
-  const cycleTheme = () => setThemeName((t) => THEME_ORDER[(THEME_ORDER.indexOf(t) + 1) % THEME_ORDER.length]);
-
   return (
     <SafeAreaProvider>
       <StatusBar style={themeName === "dark" ? "light" : "dark"} />
       {reading ? (
-        <ReaderScreen text={text} theme={theme} onCycleTheme={cycleTheme} onBack={() => setReading(false)} />
+        <ReaderScreen text={text} theme={theme} onSetTheme={setThemeName} onBack={() => setReading(false)} />
       ) : (
         <PasteScreen
           theme={theme}
