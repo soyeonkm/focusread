@@ -31,7 +31,7 @@ export default function Reader() {
           <SidebarToggle theme={theme} />
         </View>
         <Text style={[styles.title, { color: theme.ink }]}>Project not found</Text>
-        <Text style={{ color: theme.muted, fontSize: 15, marginBottom: 16 }}>It may have been saved on another device or browser.</Text>
+        <Text style={{ color: theme.muted, fontSize: 15, marginBottom: 16, textAlign: "center" }}>It may have been saved on another device or browser.</Text>
         <Link href="/" style={{ color: theme.ink, fontSize: 15, fontWeight: "600", textDecorationLine: "underline" }}>
           Start a new project
         </Link>

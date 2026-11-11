@@ -12,7 +12,7 @@ Each "project" is one pasted text that was opened with **Start reading**.
 | 3 | Automatic project titles | Done |
 | 4 | Sidebar layout (static) | Done |
 | 5 | Wire sidebar to projects | Done |
-| 6 | Polish and mobile pass | Not started |
+| 6 | Polish and mobile pass | Done |
 
 Update this table as each ticket lands. One branch + PR per ticket.
 
