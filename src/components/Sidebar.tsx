@@ -7,11 +7,13 @@ import { Theme } from "./theme";
 /** Below this width the sidebar opens as an overlay drawer instead of sitting beside the page. */
 export const WIDE_MIN = 768;
 
-export const SidebarContext = createContext<{ open: boolean; setOpen: (open: boolean) => void; wide: boolean }>({
-  open: false,
-  setOpen: () => {},
-  wide: false,
-});
+export const SidebarContext = createContext<{
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  wide: boolean;
+  /** Put a just-saved project at the top of the list. */
+  addProject: (project: ProjectMeta) => void;
+}>({ open: false, setOpen: () => {}, wide: false, addProject: () => {} });
 
 interface Props {
   theme: Theme;
