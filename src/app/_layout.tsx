@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
@@ -7,15 +8,29 @@ import { Sidebar, SidebarContext, WIDE_MIN } from "../components/Sidebar";
 import { ThemeContext, ThemeName, THEMES } from "../components/theme";
 import { listProjects, ProjectMeta } from "../lib/projects";
 
+const SIDEBAR_KEY = "sidebar:docked";
+
 export default function RootLayout() {
   const [themeName, setThemeName] = useState<ThemeName>("light");
   const theme = THEMES[themeName];
   const router = useRouter();
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_MIN;
-  // Until the user toggles it, the sidebar starts open on wide screens and closed on narrow ones.
-  const [openChoice, setOpen] = useState<boolean | null>(null);
-  const open = openChoice ?? wide;
+  // Wide screens remember whether the docked sidebar was open; the narrow drawer always starts closed,
+  // so a phone never opens covered by it.
+  const [dockedOpen, setDockedOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(SIDEBAR_KEY)
+      .then((v) => v === "closed" && setDockedOpen(false))
+      .catch(() => {}); // Unreadable preference: keep the default.
+  }, []);
+  const open = wide ? dockedOpen : drawerOpen;
+  const setOpen = (next: boolean) => {
+    if (!wide) return setDrawerOpen(next);
+    setDockedOpen(next);
+    AsyncStorage.setItem(SIDEBAR_KEY, next ? "open" : "closed").catch(() => {});
+  };
 
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   useEffect(() => {

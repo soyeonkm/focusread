@@ -47,6 +47,7 @@ export function Sidebar({ theme, projects, activeId, onNew, onSelect }: Props) {
 
       <Text style={[styles.section, { color: theme.muted }]}>Projects</Text>
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+        {projects.length === 0 && <Text style={[styles.empty, { color: theme.muted }]}>Projects you start reading appear here.</Text>}
         {projects.map((p) => {
           const active = p.id === activeId;
           return (
@@ -103,6 +104,7 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 6, marginBottom: 12 },
   section: { fontSize: 12, fontWeight: "500", paddingHorizontal: 10, marginBottom: 4 },
   list: { flex: 1 },
+  empty: { fontSize: 13, lineHeight: 19, paddingHorizontal: 10, paddingTop: 6 },
   listContent: { paddingBottom: 16, gap: 2 },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 8 },
   glyph: { width: 18, height: 15, borderWidth: 1.5, borderRadius: 3.5 },
