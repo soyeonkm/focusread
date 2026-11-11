@@ -9,7 +9,7 @@ Each "project" is one pasted text that was opened with **Start reading**.
 |---|--------|--------|
 | 1 | Move navigation to Expo Router | Done |
 | 2 | Project storage | Done |
-| 3 | Automatic project titles | Not started |
+| 3 | Automatic project titles | Done |
 | 4 | Sidebar layout (static) | Not started |
 | 5 | Wire sidebar to projects | Not started |
 | 6 | Polish and mobile pass | Not started |
