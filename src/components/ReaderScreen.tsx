@@ -1,7 +1,9 @@
+import * as Speech from "expo-speech";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, Platform, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Line, LayoutMode, layoutText } from "../lib/layout";
+import { chunkAt, chunkStarts, utteranceAt } from "../lib/speech";
 import { SidebarToggle } from "./Sidebar";
 import { SERIF, Theme, ThemeName } from "./theme";
 
@@ -67,6 +69,7 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
   const [dim, setDim] = useState(true);
   const [wpm, setWpm] = useState(220);
   const [playing, setPlaying] = useState(false);
+  const [readAloud, setReadAloud] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [index, setIndex] = useState(0);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -83,6 +86,9 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
     [text, mode, lineLens],
   );
 
+  const paraTexts = useMemo(() => layoutText(text, "paragraph").map((l) => l.text), [text]);
+  const starts = useMemo(() => chunkStarts(lines, paraTexts), [lines, paraTexts]);
+
   const saveLineLens = (p: number, lens: number[]) =>
     setLineLens((m) => (m[p]?.join() === lens.join() ? m : { ...m, [p]: lens }));
 
@@ -97,12 +103,14 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
   }, [lines]);
   const safeIndex = Math.min(index, Math.max(0, lines.length - 1));
 
-  // Keep the reader in the same paragraph when the layout changes (adjusting state during render).
+  // Keep the reader at the same spot when the layout changes (adjusting state during render):
+  // focus the new chunk that holds the old chunk's first character.
   const [prevLines, setPrevLines] = useState(lines);
   if (prevLines !== lines) {
     setPrevLines(lines);
-    const para = prevLines[Math.min(index, prevLines.length - 1)]?.paragraph ?? 0;
-    setIndex(Math.max(0, lines.findIndex((l) => l.paragraph === para)));
+    const old = Math.min(index, prevLines.length - 1);
+    const pos = chunkStarts(prevLines, paraTexts)[old] ?? 0;
+    setIndex(Math.max(0, chunkAt(lines, starts, prevLines[old]?.paragraph ?? 0, pos)));
   }
 
   const go = useCallback(
@@ -124,7 +132,7 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
 
   // Auto-advance at the chosen reading speed.
   useEffect(() => {
-    if (!playing || safeIndex >= lines.length - 1) return;
+    if (!playing || readAloud || safeIndex >= lines.length - 1) return;
     const words = lines[safeIndex].text.trim().split(/\s+/).length;
     const ms = Math.max(700, (words / wpm) * 60000);
     const t = setTimeout(() => {
@@ -132,7 +140,59 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
       if (safeIndex + 1 >= lines.length - 1) setPlaying(false);
     }, ms);
     return () => clearTimeout(t);
-  }, [playing, safeIndex, wpm, lines]);
+  }, [playing, readAloud, safeIndex, wpm, lines]);
+
+  // Read aloud: speak whole sentences and move the highlight to whichever chunk the voice is in.
+  const voiceAt = useRef(-1); // Chunk the voice last moved the highlight to.
+  const gen = useRef(0); // Bumped on every stop/restart so stale callbacks do nothing.
+  const layout = useRef({ lines, starts }); // Layout the voice maps positions into; swapped on mode change.
+  useEffect(() => {
+    if (!playing || !readAloud) return;
+    return () => {
+      gen.current++;
+      voiceAt.current = -1;
+      Speech.stop();
+    };
+  }, [playing, readAloud]);
+  useEffect(() => {
+    if (!playing || !readAloud || !lines.length) return;
+    if (layout.current.lines !== lines && voiceAt.current >= 0) {
+      // Mode or wrapping changed mid-sentence: keep talking, map the voice into the new layout.
+      layout.current = { lines, starts };
+      voiceAt.current = safeIndex;
+      return;
+    }
+    if (safeIndex === voiceAt.current) return;
+    layout.current = { lines, starts };
+    // The highlight moved by hand (or Play was just pressed): restart from there.
+    const my = ++gen.current;
+    // ponytail: ~180 wpm is a normal voice; tune if rates feel off on a platform.
+    const rate = Math.min(2, Math.max(0.5, wpm / 180));
+    const moveTo = (i: number) => {
+      if (i < 0 || i === voiceAt.current) return;
+      voiceAt.current = i;
+      setIndex(i);
+    };
+    const speakFrom = (p: number, offset: number) => {
+      if (my !== gen.current) return;
+      const u = utteranceAt(paraTexts[p], offset);
+      if (!u) {
+        if (p + 1 < paraTexts.length) speakFrom(p + 1, 0);
+        else setPlaying(false);
+        return;
+      }
+      // Covers voices that never report word positions: the highlight still moves per sentence.
+      const at = (pos: number) => chunkAt(layout.current.lines, layout.current.starts, p, pos);
+      moveTo(at(u.start));
+      Speech.speak(u.text, {
+        rate,
+        onBoundary: (e: { charIndex: number }) => my === gen.current && moveTo(at(u.start + e.charIndex)),
+        onDone: () => speakFrom(p, u.start + u.text.length),
+      });
+    };
+    voiceAt.current = safeIndex;
+    Speech.stop().finally(() => speakFrom(lines[safeIndex].paragraph, starts[safeIndex]));
+  }, [playing, readAloud, safeIndex, wpm, lines, starts, paraTexts]);
 
   // Keyboard controls on the web.
   useEffect(() => {
@@ -175,6 +235,9 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
         <View style={[styles.settings, { borderBottomColor: theme.line }]}>
           <Stepper theme={theme} label="Text size" value={`${fontSize}`} onMinus={() => setFontSize((s) => Math.max(14, s - 2))} onPlus={() => setFontSize((s) => Math.min(36, s + 2))} />
           <Stepper theme={theme} label="Words per minute" value={`${wpm}`} onMinus={() => setWpm((w) => Math.max(80, w - 20))} onPlus={() => setWpm((w) => Math.min(500, w + 20))} />
+          <SettingRow theme={theme} label={Platform.OS === "ios" ? "Read aloud (silent switch mutes it)" : "Read aloud"}>
+            <Segmented theme={theme} options={ON_OFF} value={readAloud} onChange={setReadAloud} />
+          </SettingRow>
           <SettingRow theme={theme} label="Fade other text">
             <Segmented theme={theme} options={ON_OFF} value={dim} onChange={setDim} />
           </SettingRow>
@@ -239,7 +302,7 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={playing ? "Pause" : "Play at set pace"}
+            accessibilityLabel={playing ? "Pause" : readAloud ? "Read aloud" : "Play at set pace"}
             onPress={() => setPlaying((p) => !p)}
             style={({ pressed }) => [styles.ctl, styles.ctlMain, { backgroundColor: theme.ink, borderColor: theme.ink, opacity: pressed ? 0.8 : 1 }]}
           >
