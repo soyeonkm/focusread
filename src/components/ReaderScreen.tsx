@@ -1,9 +1,10 @@
-import * as Speech from "expo-speech";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutChangeEvent, Platform, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Line, LayoutMode, layoutText } from "../lib/layout";
 import { chunkAt, chunkStarts, utteranceAt } from "../lib/speech";
+import { kittenVoice, loadKitten, useKittenStatus } from "../lib/kitten";
+import { deviceVoice, type KittenStatus } from "../lib/voice";
 import { SidebarToggle } from "./Sidebar";
 import { SERIF, Theme, ThemeName } from "./theme";
 
@@ -70,6 +71,13 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
   const [wpm, setWpm] = useState(220);
   const [playing, setPlaying] = useState(false);
   const [readAloud, setReadAloud] = useState(true);
+  const [natural, setNatural] = useState(true);
+  const kitten = useKittenStatus();
+  useEffect(() => {
+    if (readAloud && natural) loadKitten();
+  }, [readAloud, natural]);
+  // The device voice reads until the natural one is downloaded, or if it fails.
+  const voice = natural && kitten.state === "ready" && kittenVoice ? kittenVoice : deviceVoice;
   const [showSettings, setShowSettings] = useState(false);
   const [index, setIndex] = useState(0);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -151,9 +159,9 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
     return () => {
       gen.current++;
       voiceAt.current = -1;
-      Speech.stop();
+      voice.stop();
     };
-  }, [playing, readAloud]);
+  }, [playing, readAloud, voice]);
   useEffect(() => {
     if (!playing || !readAloud || !lines.length) return;
     if (layout.current.lines !== lines && voiceAt.current >= 0) {
@@ -184,15 +192,17 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
       // Covers voices that never report word positions: the highlight still moves per sentence.
       const at = (pos: number) => chunkAt(layout.current.lines, layout.current.starts, p, pos);
       moveTo(at(u.start));
-      Speech.speak(u.text, {
+      voice.speak(u.text, {
         rate,
-        onBoundary: (e: { charIndex: number }) => my === gen.current && moveTo(at(u.start + e.charIndex)),
+        onWord: (i) => my === gen.current && moveTo(at(u.start + i)),
         onDone: () => speakFrom(p, u.start + u.text.length),
       });
+      const next = utteranceAt(paraTexts[p], u.start + u.text.length) ?? (p + 1 < paraTexts.length ? utteranceAt(paraTexts[p + 1], 0) : null);
+      if (next) voice.prepare?.(next.text, rate);
     };
     voiceAt.current = safeIndex;
-    Speech.stop().finally(() => speakFrom(lines[safeIndex].paragraph, starts[safeIndex]));
-  }, [playing, readAloud, safeIndex, wpm, lines, starts, paraTexts]);
+    voice.stop().finally(() => speakFrom(lines[safeIndex].paragraph, starts[safeIndex]));
+  }, [playing, readAloud, safeIndex, wpm, lines, starts, paraTexts, voice]);
 
   // Keyboard controls on the web.
   useEffect(() => {
@@ -235,9 +245,22 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
         <View style={[styles.settings, { borderBottomColor: theme.line }]}>
           <Stepper theme={theme} label="Text size" value={`${fontSize}`} onMinus={() => setFontSize((s) => Math.max(14, s - 2))} onPlus={() => setFontSize((s) => Math.min(36, s + 2))} />
           <Stepper theme={theme} label="Words per minute" value={`${wpm}`} onMinus={() => setWpm((w) => Math.max(80, w - 20))} onPlus={() => setWpm((w) => Math.min(500, w + 20))} />
-          <SettingRow theme={theme} label={Platform.OS === "ios" ? "Read aloud (silent switch mutes it)" : "Read aloud"}>
+          <SettingRow theme={theme} label={Platform.OS === "ios" && voice === deviceVoice ? "Read aloud (silent switch mutes it)" : "Read aloud"}>
             <Segmented theme={theme} options={ON_OFF} value={readAloud} onChange={setReadAloud} />
           </SettingRow>
+          {kitten.state !== "unsupported" && (
+            <SettingRow theme={theme} label={voiceLabel(natural, kitten)}>
+              <Segmented
+                theme={theme}
+                options={VOICES}
+                value={natural}
+                onChange={(v) => {
+                  setNatural(v);
+                  if (v) loadKitten(); // Also retries a failed download.
+                }}
+              />
+            </SettingRow>
+          )}
           <SettingRow theme={theme} label="Fade other text">
             <Segmented theme={theme} options={ON_OFF} value={dim} onChange={setDim} />
           </SettingRow>
@@ -315,6 +338,18 @@ export function ReaderScreen({ text, theme, onSetTheme }: Props) {
       </View>
     </View>
   );
+}
+
+const VOICES: { key: boolean; label: string }[] = [
+  { key: true, label: "Natural" },
+  { key: false, label: "Device" },
+];
+
+function voiceLabel(natural: boolean, k: KittenStatus) {
+  if (!natural) return "Voice";
+  if (k.state === "downloading") return `Voice (downloading ${k.percent}%)`;
+  if (k.state === "failed") return "Voice (download failed, tap Natural to retry)";
+  return "Voice";
 }
 
 const ON_OFF: { key: boolean; label: string }[] = [

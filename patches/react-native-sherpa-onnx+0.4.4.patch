@@ -1,0 +1,35 @@
+diff --git a/node_modules/react-native-sherpa-onnx/scripts/setup-ios-framework.sh b/node_modules/react-native-sherpa-onnx/scripts/setup-ios-framework.sh
+index 41fd337..fb6d6e3 100755
+--- a/node_modules/react-native-sherpa-onnx/scripts/setup-ios-framework.sh
++++ b/node_modules/react-native-sherpa-onnx/scripts/setup-ios-framework.sh
+@@ -400,6 +400,16 @@ download_and_extract_framework() {
+     return 1
+   fi
+ 
++  # focusread patch: 1.13.x ships SherpaOnnxC.framework per slice; expose it under the old names.
++  if [ "$slug" = "sherpa-onnx" ]; then
++    for slice in "$FRAMEWORKS_DIR/$XCFRAMEWORK_NAME"/ios-*; do
++      if [ -d "$slice/SherpaOnnxC.framework" ]; then
++        ln -sfn SherpaOnnxC.framework/Headers "$slice/Headers"
++        ln -sfn SherpaOnnxC.framework/SherpaOnnxC "$slice/libsherpa-onnx.a"
++      fi
++    done
++  fi
++
+   if ! framework_valid "$slug" "$FRAMEWORKS_DIR/$XCFRAMEWORK_NAME"; then
+     echo -e "${RED}Error: Downloaded $DISPLAY_NAME framework is missing required libraries or headers.${NC}" >&2
+     echo "Expected e.g. $FRAMEWORKS_DIR/$XCFRAMEWORK_NAME/ios-arm64_x86_64-simulator/$HEADER_CHECK" >&2
+diff --git a/node_modules/react-native-sherpa-onnx/third_party/sherpa-onnx-prebuilt/ANDROID_RELEASE_TAG b/node_modules/react-native-sherpa-onnx/third_party/sherpa-onnx-prebuilt/ANDROID_RELEASE_TAG
+index 6a734cc..4a27eee 100644
+--- a/node_modules/react-native-sherpa-onnx/third_party/sherpa-onnx-prebuilt/ANDROID_RELEASE_TAG
++++ b/node_modules/react-native-sherpa-onnx/third_party/sherpa-onnx-prebuilt/ANDROID_RELEASE_TAG
+@@ -1 +1 @@
+-sherpa-onnx-android-v1.12.35-1
++sherpa-onnx-android-v1.13.8-1
+diff --git a/node_modules/react-native-sherpa-onnx/third_party/sherpa-onnx-prebuilt/IOS_RELEASE_TAG b/node_modules/react-native-sherpa-onnx/third_party/sherpa-onnx-prebuilt/IOS_RELEASE_TAG
+index 17d9f92..88f07fb 100644
+--- a/node_modules/react-native-sherpa-onnx/third_party/sherpa-onnx-prebuilt/IOS_RELEASE_TAG
++++ b/node_modules/react-native-sherpa-onnx/third_party/sherpa-onnx-prebuilt/IOS_RELEASE_TAG
+@@ -1 +1 @@
+-sherpa-onnx-ios-v1.12.35-1
++sherpa-onnx-ios-v1.13.8-1
