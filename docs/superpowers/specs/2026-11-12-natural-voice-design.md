@@ -73,8 +73,10 @@ interface Voice {
 - Word timing: model `duration` output (600 samples per token); token 16 (space) marks word
   boundaries. Align phoneme words to text words; where counts differ (numbers, abbreviations)
   spread the gap proportionally.
-- Threads need `crossOriginIsolated`: COOP `same-origin` + COEP `require-corp` headers on the dev
-  server (Expo web server config) and on any future host. Without them: 1 thread (~real time).
+- Threads need `crossOriginIsolated`. As built: a small service worker (`public/coi-sw.js`) adds COOP
+  `same-origin` + COEP `require-corp` to the site's own responses, because Expo's dev server ignores
+  header config for single-page web output. Works on any host; the first visit reloads once.
+  Without it: 1 thread (~real time).
 - Model files cached with the Cache API after first download.
 
 ## Errors
